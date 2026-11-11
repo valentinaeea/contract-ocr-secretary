@@ -1,0 +1,153 @@
+name: Build offline Windows desktop
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'native/**'
+      - 'tests/**'
+      - 'requirements-native.txt'
+      - 'js/**'
+      - 'css/**'
+      - 'index.html'
+      - '.github/workflows/windows-desktop.yml'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release to publish to (desktop-latest = the normal download; e.g. v2.14.2 for a fixed version)'
+        required: false
+        default: 'desktop-latest'
+concurrency:
+  group: windows-desktop-${{ github.ref }}-${{ inputs.release_tag || 'desktop-latest' }}
+  cancel-in-progress: true
+permissions:
+  contents: write
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: requirements-native.txt
+      - name: Install build dependencies
+        run: python -m pip install -r requirements-native.txt
+      - name: Install PyInstaller with a bootloader compiled from source
+        # The prebuilt PyInstaller bootloader is shared with many malware samples, so antivirus
+        # engines often flag any EXE that uses it. Compiling it here gives a unique bootloader.
+        env:
+          PYINSTALLER_COMPILE_BOOTLOADER: '1'
+        run: |
+          python -m pip install --no-binary pyinstaller --no-cache-dir "pyinstaller==6.22.3"
+          python -c "import PyInstaller, pathlib, hashlib; b = pathlib.Path(PyInstaller.__file__).parent / 'bootloader' / 'Windows-64bit-intel' / 'run.exe'; print('bootloader', b, hashlib.sha256(b.read_bytes()).hexdigest())"
+      - name: Check local data, cancellation and page layout
+        run: python -m unittest discover -s tests -p 'test_*.py'
+      - name: Check independent business snapshots
+        run: node tests/business_snapshot.cjs
+      - name: Check upload analysis boundaries
+        run: node tests/contract_scope.cjs
+      - name: Check formatting after full text edits
+        run: node tests/document_view.cjs
+      - name: Check project titles and contracting parties
+        run: node tests/identity_extraction.cjs
+      - name: Check deliverables ignore legal clauses
+        run: node tests/deliverable_extraction.cjs
+      - name: Check total contract amount and installment exclusion
+        run: node tests/amount_extraction.cjs
+      - name: Check critical content extraction
+        run: node tests/critical_review.cjs
+      - name: Check service content classification boundaries
+        run: node tests/service_content.cjs
+      - name: Check keyword precision for cloud search
+        run: node tests/keyword_precision.cjs
+      - name: Check contract knowledge projection and retrieval
+        run: node tests/vault_model.cjs
+      - name: Check edit dialog keeps amount and saves keywords/systems
+        run: node tests/edit_dialog_model.cjs
+      - name: Check expandable local service domains
+        run: node tests/domain_catalog.cjs
+      - name: Audit semantic tag recall, roles and normalization
+        run: node tests/tag_audit.cjs
+      - name: Prepare public pretrained semantic weights
+        run: python native/fetch_semantic_model.py
+      - name: Prepare public PP-OCRv5 OCR weights (separate build environment)
+        shell: pwsh
+        run: |
+          python -m venv "$env:RUNNER_TEMP/modelfetch"
+          & "$env:RUNNER_TEMP/modelfetch/Scripts/python.exe" -m pip install rapidocr==3.8.4 onnxruntime
+          & "$env:RUNNER_TEMP/modelfetch/Scripts/python.exe" native/fetch_ocr_models.py
+          if ($LASTEXITCODE -ne 0) { throw 'PP-OCRv5 model download failed' }
+      - name: Quantize the PP-OCRv4 detector to int8 (accepted only if the check below passes)
+        shell: pwsh
+        run: |
+          & "$env:RUNNER_TEMP/modelfetch/Scripts/python.exe" -m pip install onnx sympy rapidocr_onnxruntime==1.4.4
+          & "$env:RUNNER_TEMP/modelfetch/Scripts/python.exe" tools/quantize_ocr.py models/ocr_models --det-only
+          if ($LASTEXITCODE -ne 0) { Write-Warning 'int8 detector not built; the app uses the original detector' }
+      - name: Check bundled OCR models load and read a synthetic date
+        run: python native/check_ocr_models.py
+      - name: Write Windows version resource
+        run: python native/make_version_info.py version_info.txt
+      - name: Bundle program and offline models
+        run: >-
+          python -m PyInstaller --noconfirm --clean --onedir --name ContractOCR --version-file version_info.txt --noupx
+          --paths native --hidden-import documents --hidden-import engine --hidden-import semantic --hidden-import page_quality --hidden-import layout_quality --hidden-import recovery --hidden-import ocr_cache --hidden-import text_normalize --hidden-import date_review --hidden-import ocr_dictionary --hidden-import excel_table
+          --collect-all rapidocr_onnxruntime --collect-all onnxruntime
+          --collect-all pyclipper --collect-all shapely --collect-all pymupdf --collect-all tokenizers
+          --add-data "models/semantic_model;semantic_model" --add-data "models/ocr_models;ocr_models" --add-data "index.html;web" --add-data "js;web/js"
+          --add-data "css;web/css" --add-data "assets;web/assets" --add-data "lib;web/lib"
+          native/desktop.py
+      - name: Test packaged executable with synthetic PDFs
+        run: python native/smoke_windows.py dist/ContractOCR/ContractOCR.exe
+      - name: Install browser UI test runtime
+        shell: pwsh
+        run: |
+          npm install --prefix "$env:RUNNER_TEMP/ocr-ui" playwright@1.56.1
+          & "$env:RUNNER_TEMP/ocr-ui/node_modules/.bin/playwright.cmd" install chromium
+      - name: Test supplied demo pages with packaged local contract storage
+        shell: pwsh
+        env:
+          OCR_TEST_REAL_UPLOAD: "1"
+        run: |
+          $env:NODE_PATH = "$env:RUNNER_TEMP/ocr-ui/node_modules"
+          node tests/demo_pages.cjs dist/ContractOCR/ContractOCR.exe
+      - name: Test contract list Excel export, import and cloud-folder merge
+        shell: pwsh
+        run: |
+          $env:NODE_PATH = "$env:RUNNER_TEMP/ocr-ui/node_modules"
+          node tests/contract_list_excel.cjs dist/ContractOCR/ContractOCR.exe
+      - name: Verify bundled models
+        shell: pwsh
+        run: |
+          $models = Get-ChildItem dist/ContractOCR -Recurse -Filter '*PP-OCRv4*'
+          if ($models.Count -lt 2) { throw 'Offline OCR models are missing' }
+          $v5 = Get-ChildItem dist/ContractOCR -Recurse -Filter 'ppocrv5_*'
+          if ($v5.Count -lt 4) { throw 'PP-OCRv5 handwriting/date models are missing' }
+          Copy-Item README.md dist/ContractOCR/README.md
+          Copy-Item packaged-validation.json dist/ContractOCR/validation_report.json
+          Compress-Archive -Path dist/ContractOCR -DestinationPath ContractOCR-Windows-x64.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ContractOCR-Windows-x64
+          path: ContractOCR-Windows-x64.zip
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Synthetic-validation-report
+          path: packaged-validation.json
+      - name: Publish desktop download
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = '${{ inputs.release_tag }}'
+          if (-not $tag) { $tag = 'desktop-latest' }
+          $hash = (Get-FileHash ContractOCR-Windows-x64.zip -Algorithm SHA256).Hash
+          $exeHash = (Get-FileHash dist/ContractOCR/ContractOCR.exe -Algorithm SHA256).Hash
+          "ContractOCR-Windows-x64.zip  SHA256 $hash`nContractOCR.exe  SHA256 $exeHash" | Set-Content -Encoding utf8 SHA256SUMS.txt
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            $title = if ($tag -eq 'desktop-latest') { 'Windows offline desktop' } else { "Windows offline desktop $tag" }
+            gh release create $tag --target $env:GITHUB_SHA --title $title --notes "Download ContractOCR-Windows-x64.zip, extract the complete folder, then open ContractOCR.exe. Requires 64-bit Windows. OCR and documents remain on your computer. SHA256 values are in SHA256SUMS.txt."
+          }
+          gh release upload $tag ContractOCR-Windows-x64.zip SHA256SUMS.txt --clobber

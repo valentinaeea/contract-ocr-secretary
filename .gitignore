@@ -1,0 +1,16 @@
+ContractOCR_Data/
+__pycache__/
+*.pyc
+build/
+dist/
+*.spec
+*.zip
+models/
+.venv-build/
+.venv-models/
+version_info.txt
+packaged-validation.json
+
+.venv/
+test-output/
+ContractOCR_Secretary_Data/

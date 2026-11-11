@@ -1,0 +1,12 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
+const c={};vm.runInNewContext(fs.readFileSync(path.resolve(__dirname,'../js/critical-review.js'),'utf8')+';globalThis.review=CriticalReview;',c);
+const source='SOC 1 Type II 不\n包括 SOC 2 Type 1；USD 1,000.00；2026年2月30日；RMB 1O0.00；人民币壹万元；5 November 2026';
+const contract={rawText:source,layoutPages:[{page:1,rawStart:0,rawEnd:source.length}]};
+const items=c.review.extract(contract);
+for(const value of ['SOC 1 Type II','SOC 2 Type 1','不\n包括','USD 1,000.00','人民币壹万元','5 November 2026'])assert(items.some(item=>item.value===value),value);
+assert(items.some(item=>item.issues.includes('日期超出日历范围')));
+assert(items.some(item=>item.issues.includes('含易混淆字母或数字')));
+assert(items.every(item=>source.slice(item.offset,item.offset+item.value.length)===item.value));
+assert(items.every(item=>item.page===1));
+assert(c.review.extract({...contract,rawTextEditedAt:1}).every(item=>item.page===null));
+console.log('Critical exact excerpts, SOC types, negation, dates, monetary forms and source offsets passed.');

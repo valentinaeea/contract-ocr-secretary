@@ -1,0 +1,23 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const c=vm.createContext({console});let result;
+c.self={postMessage:r=>{result=r;}};c.importScripts=(...paths)=>paths.forEach(p=>vm.runInContext(fs.readFileSync('js/'+p.split('?')[0],'utf8'),c));
+vm.runInContext(fs.readFileSync('js/business-analysis-worker.js','utf8'),c);
+(async()=>{
+ const raw='合同名称：合成测试服务合同\n合同总金额：18万元\n服务内容：提供数据迁移。\n附录一 工作说明书\n服务内容：开展ITGC和权限管理评估。\n服务费用：人民币18万元。\n贵公司须讨论独立性问题。\n附录二 其他条款\n服务内容：流程优化。';
+ const base={id:'c',rawText:raw,uploadCategory:'ey-template',analysisRequest:'r',ocrRevision:'v'};
+ const config={projectKeys:'项目名称|合同名称',partyAKeys:'甲方',partyBKeys:'乙方',dateKeys:'签订日期',amountKeys:'合同总金额',contentKeys:'服务内容',deliverableKeys:'交付成果'};
+ await c.self.onmessage({data:{contract:base,config}});assert(!result.error,result.error);const snap=result.snapshot;
+ assert(snap.content.services.some(x=>x.label==='ITGC'));assert(!snap.content.services.some(x=>x.label==='数据迁移'));assert.equal(snap.content.commercial.length,0);assert(snap.auditFields.every(x=>['purpose','scope','exclusions','period','acceptance'].includes(x.key)));
+ for(const f of snap.auditFields)for(const e of f.evidence)assert.equal(raw.slice(e.start,e.end),e.text);
+ await c.self.onmessage({data:{contract:{...base,uploadCategory:'other'},config}});assert(result.snapshot.content.services.some(x=>x.label==='数据迁移'));assert(result.snapshot.auditFields.some(x=>x.key==='payment'));
+ c.saved=snap;c.base=base;
+ vm.runInContext(fs.readFileSync('js/analysis-results.js','utf8'),c);vm.runInContext(fs.readFileSync('js/vault-model.js','utf8'),c);
+ vm.runInContext("ServiceContent.analyze=()=>{throw Error('UI must not run service analysis')}; ContractFacts.analyze=()=>{throw Error('UI must not run fact analysis')};",c);
+ const pending=vm.runInContext("({...base,managedBusinessAnalysis:true,ruleAnalysisStatus:'queued'})",c);c.record=pending;
+ assert.equal(vm.runInContext('VaultModel.project(record).specificTags.length',c),0);
+ assert.equal(vm.runInContext('BusinessIntent.forContract(record).length',c),0);
+ assert.equal(vm.runInContext('AuditReview.forContract(record).length',c),0);
+ c.record={...pending,ruleAnalysisStatus:'done',businessSnapshot:snap};assert(vm.runInContext("VaultModel.project(record).specificTags.includes('ITGC')",c));
+ c.record.ocrRevision='new';assert.equal(vm.runInContext('AnalysisResults.ready(record)',c),false);
+ console.log('PASS independent worker, scoped service-only EY results, ordinary contract clauses, absolute offsets, persisted results and no rendering-time analysis');
+})().catch(e=>{console.error(e);process.exit(1)});

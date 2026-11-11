@@ -1,0 +1,11 @@
+{
+  "models/ocr_models/MODEL_SOURCE.json": "c3d579ff2ef68fd72a2d734764acf30d1e4950f1a680f31c243600db22503576",
+  "models/ocr_models/ppocrv5_det_mobile.onnx": "4d97c44a20d30a81aad087d6a396b08f786c4635742afc391f6621f5c6ae78ae",
+  "models/ocr_models/ppocrv5_dict.txt": "d1979e9f794c464c0d2e0b70a7fe14dd978e9dc644c0e71f14158cdf8342af1b",
+  "models/ocr_models/ppocrv5_rec_mobile.onnx": "5825fc7ebf84ae7a412be049820b4d86d77620f204a041697b0494669b1742c5",
+  "models/ocr_models/ppocrv5_rec_server.onnx": "e09385400eaaaef34ceff54aeb7c4f0f1fe014c27fa8b9905d4709b65746562a",
+  "models/semantic_model/MODEL_SOURCE.json": "5543a8176ec79c096067cbe1709b3429070c7612578b7af3231a4bc6b87456ba",
+  "models/semantic_model/README.md": "cb22054df1a98f7ee9d5b281d023e67c27cc316e1733baf03fc994d95c3048ab",
+  "models/semantic_model/model_quantized.onnx": "15b717c382bcb518ba457b93ea6850ede7f4f1cd8937454aa06972366cd19bcc",
+  "models/semantic_model/tokenizer.json": "48cea5d44424912a6fd1ea647bf4fe50b55ab8b1e5879c3275f80e339e8fae26"
+}

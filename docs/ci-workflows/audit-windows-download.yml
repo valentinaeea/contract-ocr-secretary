@@ -1,0 +1,85 @@
+name: Audit Windows download with Microsoft Defender
+on:
+  workflow_dispatch:
+    inputs:
+      source_runs:
+        description: 'JSON array of build run IDs whose original ZIPs should be scanned'
+        required: true
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        source_run: ${{ fromJSON(inputs.source_runs) }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ContractOCR-Windows-x64
+          run-id: ${{ matrix.source_run }}
+          github-token: ${{ github.token }}
+          path: original
+      - name: Record original download identity
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force reports | Out-Null
+          $zip = Get-Item original/ContractOCR-Windows-x64.zip
+          $hash = (Get-FileHash $zip.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  ContractOCR-Windows-x64.zip" | Set-Content reports/SHA256SUMS.txt
+          "Source build: ${{ matrix.source_run }}`nZIP SHA256: $hash" | Tee-Object reports/identity.txt
+          Expand-Archive $zip.FullName extracted
+          Get-AuthenticodeSignature extracted/ContractOCR/ContractOCR.exe |
+            Format-List Status,StatusMessage,Path | Out-File reports/signature.txt
+      - name: Scan unchanged ZIP and extracted folder
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          try {
+            $service = Get-Service WinDefend
+            if ($service.Status -ne 'Running') { Start-Service WinDefend }
+            try { Update-MpSignature } catch {
+              Write-Warning "Default signature update failed; retrying from Microsoft Malware Protection Center."
+              try { Update-MpSignature -UpdateSource MMPC } catch {
+                Write-Warning "MMPC update failed; checking the existing signature timestamp."
+              }
+            }
+            $status = Get-MpComputerStatus
+            $status | Select-Object AMServiceEnabled,AntivirusEnabled,AMProductVersion,AntivirusSignatureVersion,AntivirusSignatureLastUpdated |
+              ConvertTo-Json | Set-Content reports/defender-status.json
+            if (-not $status.AMServiceEnabled -or -not $status.AntivirusEnabled) {
+              throw 'Microsoft Defender is unavailable. No clean result can be claimed.'
+            }
+            if (-not $status.AntivirusSignatureLastUpdated -or $status.AntivirusSignatureLastUpdated -lt (Get-Date).AddDays(-2)) {
+              throw 'Defender definitions are missing or older than two days. No clean result can be claimed.'
+            }
+            $scanner = Get-ChildItem "$env:ProgramData/Microsoft/Windows Defender/Platform/*/MpCmdRun.exe" |
+              Sort-Object LastWriteTime -Descending | Select-Object -First 1
+            if (-not $scanner) { $scanner = Get-Item "$env:ProgramFiles/Windows Defender/MpCmdRun.exe" }
+            foreach ($target in @('original/ContractOCR-Windows-x64.zip', 'extracted/ContractOCR')) {
+              $resolved = (Resolve-Path $target).Path
+              "Scanning: $resolved" | Tee-Object -FilePath reports/scan.txt -Append
+              & $scanner.FullName -Scan -ScanType 3 -File $resolved -DisableRemediation 2>&1 |
+                Tee-Object -FilePath reports/scan.txt -Append
+              $scanExitCode = $LASTEXITCODE
+              "Scanner exit: $scanExitCode" | Tee-Object -FilePath reports/scan.txt -Append
+              if ($scanExitCode -ne 0) {
+                throw "Scan returned $scanExitCode; examine scan.txt for detections or scanner failure."
+              }
+            }
+            'Microsoft Defender completed both scans with exit code 0. This does not certify corporate EDR acceptance.' |
+              Tee-Object reports/result.txt
+          } catch {
+            "NO CLEAN RESULT: $($_.Exception.Message)" | Tee-Object reports/result.txt
+            throw
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Download-audit-${{ matrix.source_run }}
+          path: reports/
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,34 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
+const context={};
+for(const file of ['service-content.js','business-intent.js'])vm.runInNewContext(fs.readFileSync(path.resolve(__dirname,'../js/'+file),'utf8'),context);
+vm.runInNewContext('globalThis.content=ServiceContent;globalThis.business=BusinessIntent;',context);
+const source='服务内容：为客户提供ISO/IEC 27001:2022及ISO/IEC 27701:2025认证准备辅导。\n提供差距分析和隐私风险评估方法辅导；提供隐私影响评估PIA及RoPA记录辅导。\n交付成果：出具差距分析报告；提供培训课件。\n培训内容：访问控制、加密技术、应用控制、业务连续性。\n人员要求：须持有CISA或CISSP，参与过金融科技和医疗行业项目。\n付款：分三期支付，尾款与认证证书挂钩。\n不得将客户数据用于训练人工智能模型。\n不包括数据核查服务。\n联系人：李某；项目负责人由双方另行确定。';
+const result=context.content.analyze(source);
+assert(result.services.some(x=>x.label==='差距分析'));
+assert(result.services.some(x=>x.label==='隐私影响评估辅导'));
+assert(result.services.some(x=>x.label==='处理活动记录辅导'));
+assert(result.training.some(x=>x.label==='访问控制'));
+assert(!result.services.some(x=>x.label==='系统控制评估'));
+assert(result.personnel.some(x=>x.label==='CISA'));
+assert.equal(result.industry.length,0);assert.equal(result.systems.length,0);
+assert(result.commercial.some(x=>x.evidence.includes('不得将')));
+assert.equal(result.domains.find(x=>x.label==='SOX').status,'未提及');
+assert.equal(result.domains.find(x=>x.label==='业财核查').status,'明确排除');
+assert(!context.business.classify(source).some(x=>x.code==='ITAC'));
+assert(!context.business.forContract({rawText:source,semanticTags:[{code:'SEM_SOC1_RELATED',evidence:['提供差距分析和隐私风险评估方法辅导；']},{code:'SEM_DATA_REVIEW',evidence:['提供差距分析和隐私风险评估方法辅导；']}]}).some(x=>/^SEM_SOC1|^SEM_DATA/.test(x.code)));
+const positive='服务内容：对SAP实施信息系统一般控制评估；开展业财一致性核对。';
+assert(context.content.analyze(positive).systems.some(x=>x.label==='SAP'));
+assert(context.business.classify(positive).some(x=>x.code==='ITGC'));
+assert(context.business.classify('公司拟在香港联合交易所上市，委托提供信息系统评估服务。').some(x=>x.code==='IPO_RELATED'));
+assert(context.business.classify('提供SOC 1 Type II鉴证报告。').some(x=>x.code==='SOC1_TYPE2'));
+assert(!context.business.forContract({rawText:source,semanticTags:[{code:'SEM_SOC1_RELATED',evidence:['培训内容：访问控制、加密技术、应用控制、业务连续性。']}]}).some(x=>x.code==='SEM_SOC1_RELATED'));
+assert(context.content.analyze('服务内容：提供一项新的设备可靠性验证服务。').services.length>0);
+const restrictions=context.content.analyze('服务内容：提供认证准备辅导。\n付款：取得认证证书后支付尾款。\n人员要求：具备CIFT证书。\n培训内容：适用性声明SDA。');
+assert(!restrictions.deliverables.some(x=>x.label.includes('认证证书')));assert(restrictions.personnel.some(x=>x.label==='CIFT'));assert(!restrictions.standards.some(x=>x.label==='SoA'));
+console.log('Service activities vs training/personnel/commercial boundaries; explicit exclusions vs absence; no inferred industry/system/IT audit; open service phrases passed.');
+const junk=['本协议服务','服务或其他服务','专业服务','的本合同服务','人员监督本服务','客户整个项目工作计划，包括评估','第七条所述服务','服务商应履行本服务','的服务有关的服务','信息权限，包括材料编制服务','服务性质、提供服务','任何鉴证服务'];
+for(const phrase of junk){assert.equal(context.content.cleanTag(phrase),'',phrase);assert.equal(context.content.analyze('服务内容：提供'+phrase+'。').services.length,0,phrase);}
+const grouped=context.content.analyze('服务内容：提供SOX合规评估；开展业财一致性核对；实施ITGC、权限管理、风险核查、风险评估、流程优化及数据迁移。\n培训内容：数据备份。\n不提供内部控制建设。');assert.deepEqual(Array.from(grouped.serviceDomains,x=>x.label),['SOX','业财','内控','风险咨询']);for(const x of grouped.services)assert(context.content.cleanTag(x.label),x.label);assert(!grouped.services.some(x=>/本协议|任何|专业服务/.test(x.label)));assert.equal(context.content.analyze('培训内容：SOX、ITGC、风险评估。').serviceDomains.length,0);assert.equal(context.content.analyze('服务内容：不承担ITGC、SOX及风险评估。').serviceDomains.length,0);
+console.log('PASS boilerplate regression, typed service domains, contextual exclusions and clean service vocabulary');
+
+assert.deepEqual(Array.from(context.content.analyze('服务内容：提供风险咨询服务。').serviceDomains,x=>x.label),['风险咨询']);assert.equal(context.content.analyze('服务内容：提供风险咨询服务。').services.length,0);

@@ -1,0 +1,99 @@
+/* v2.15.0：合同列表与检索、上传人标签、编辑弹窗、上传到云端总表。沿用应用原有配色与控件。 */
+#upload-cloud-share .panel{padding:26px;max-width:1100px}
+#upload-cloud-share .cloud-select{display:flex;gap:12px;align-items:center;margin:12px 0;flex-wrap:wrap}
+#upload-cloud-share select{min-width:250px;max-width:100%;padding:10px}
+#upload-cloud-share .cloud-preview{overflow:auto;margin:20px 0}
+#upload-cloud-share table{width:100%;border-collapse:collapse;font-size:13px}
+#upload-cloud-share th,#upload-cloud-share td{border-bottom:1px solid var(--border,#e2e8f0);padding:12px;text-align:left;white-space:nowrap}
+#upload-cloud-share .cloud-notice{line-height:1.8;color:var(--text-secondary,#64748b);margin:16px 0}
+#upload-cloud-share .cloud-status{margin:18px 0;line-height:1.7}
+
+/* ===== 合同检索：搜索框居中，结果为卡片（沿用原检索页样式） ===== */
+#demo-searchPage{max-width:1080px;margin:0 auto}
+#demo-searchPage>.view-header{padding-top:26px;text-align:center;justify-content:center}
+#demo-searchPage .search-workspace{display:flex;flex-direction:column;gap:18px}
+#demo-searchPage .right{display:contents}
+#demo-searchPage .search-panel{order:0;max-width:900px;width:100%;margin:26px auto 0;padding:30px}
+#demo-searchPage .search-panel .panel-title{justify-content:center;border:0;margin-bottom:22px}
+#demo-searchPage .search-row{display:flex;gap:0;border:2px solid var(--primary,#2563eb);border-radius:10px;overflow:hidden;background:var(--bg-card,#fff)}
+#demo-searchPage .search-row input{flex:1;min-width:0;border:0!important;border-radius:0;padding:18px;font-size:17px;box-shadow:none}
+#demo-searchPage .search-row button{border-radius:0;min-width:108px;margin:0;font-size:16px}
+#demo-searchPage .search-panel .hint,#demo-searchPage .suggestions{margin-top:18px;text-align:center;justify-content:center}
+#demo-searchPage .search-advanced{order:1;max-width:900px;width:100%;margin:0 auto}
+#demo-searchPage .search-advanced>summary{cursor:pointer;color:var(--text-secondary,#64748b);padding:10px 4px;font-size:13px}
+#demo-searchPage .search-advanced>aside{margin-top:10px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;padding:24px}
+#demo-searchPage .search-advanced .panel-title{grid-column:1/-1}
+#demo-searchPage #demo-searchResults{order:2;max-width:900px;width:100%;margin:0 auto}
+#demo-searchPage .cards{display:flex;flex-direction:column;gap:0}
+#demo-searchPage .card{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--border,#e2e8f0);border-radius:0;box-shadow:none;background:transparent;padding:22px 4px;cursor:pointer}
+#demo-searchPage .card:hover{transform:none;background:var(--bg-card,#fff)}
+#demo-searchPage .card h3{color:var(--primary,#2563eb);font-size:18px;margin:8px 0 12px;line-height:1.5}
+#demo-searchPage .result-meta{font-size:12px;color:var(--text-secondary,#64748b)}
+#demo-searchPage .result-tags{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0}
+#demo-searchPage .result-tag{display:inline-block;padding:4px 9px;border-radius:5px;background:var(--primary-light,#eff6ff);color:var(--primary,#2563eb);font-size:12px}
+#demo-searchPage mark{background:#fff0bd;color:inherit;padding:0 1px;border-radius:2px}
+#demo-searchPage .result-classification{line-height:1.8;color:var(--text-secondary,#64748b);font-size:13px}
+#demo-searchPage .public-result{cursor:default}
+#demo-searchPage .results-header h2{font-size:16px}
+@media(max-width:760px){#demo-searchPage .search-panel{padding:18px;margin-top:12px}#demo-searchPage .search-advanced>aside{grid-template-columns:1fr}#demo-searchPage .search-row input{font-size:15px;padding:14px}#demo-searchPage .search-row button{min-width:76px}#demo-searchPage>.view-header{padding-top:8px}}
+#demo-searchPage.has-results>.view-header{padding-top:8px}
+#demo-searchPage.has-results .search-panel{margin-top:4px;padding:18px 22px}
+#demo-searchPage.has-results .search-panel .panel-title,#demo-searchPage.has-results .search-panel .hint,#demo-searchPage.has-results .search-panel .suggestions{display:none}
+#demo-searchPage .card h3,#demo-searchPage .result-classification{overflow-wrap:anywhere}
+#demo-searchPage .result-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#demo-searchPage .card-actions{display:flex;gap:10px;align-items:center;margin-top:10px}
+#demo-searchPage .card-actions button{border:1px solid var(--border,#e2e8f0);background:var(--bg-card,#fff);border-radius:6px;padding:4px 12px;font-size:13px;color:var(--primary,#2563eb)}
+#demo-searchPage .card-actions .readonly-note{font-size:12px;color:var(--text-muted,#94a3b8)}
+#demo-searchPage .card{cursor:default}
+#demo-searchPage .match-kind{display:inline-block;margin-left:6px;font-size:11px;padding:0 6px;border-radius:4px;background:#f1f5f9;color:#64748b;vertical-align:middle;font-weight:400}
+#demo-searchPage .summary .error{color:var(--danger,#dc2626)}
+
+/* 上传人标签：我上传 = 可编辑；他人上传 = 只读 */
+.owner-tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;line-height:20px;white-space:nowrap;font-weight:500}
+.owner-tag.mine{background:#dbeafe;color:#1d4ed8}
+.owner-tag.others{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0}
+.owner-tag.public{background:#fef9c3;color:#854d0e}
+.owner-tag.legacy{background:#fff7ed;color:#9a3412}
+#view-list td[data-uploader]{min-width:150px}
+#view-list td[data-uploader] .owner-name{display:block;font-size:12px;color:var(--text-secondary,#64748b);margin-top:3px;overflow-wrap:anywhere}
+
+/* 编辑弹窗（原合同整理与标签管理） */
+.vault-root dialog.editor-dialog{position:fixed;inset:0;margin:auto;width:calc(100% - 48px);max-width:1180px;max-height:92vh;max-height:92dvh;overflow:hidden;background:var(--surface,#fff)}
+.vault-root dialog.editor-dialog[open]{display:flex;flex-direction:column}
+.vault-root dialog.editor-dialog .modal-head{flex-shrink:0;display:flex;align-items:center;gap:16px;padding:18px 26px}
+.vault-root dialog.editor-dialog .modal-head h2{margin:0;font-size:20px}
+.vault-root dialog.editor-dialog .modal-head .save-status{font-size:12px;color:var(--text-muted,#94a3b8)}
+.vault-root dialog.editor-dialog .modal-body{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:20px 26px 0}
+.vault-root dialog.editor-dialog .editor-grid{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)}
+.vault-root dialog.editor-dialog .save-bar{position:sticky;bottom:0;background:var(--surface,#fff);padding:14px 0 18px;margin-top:16px;border-top:1px solid var(--line)}
+.vault-root dialog.editor-dialog .close{position:static;order:3;margin-left:auto}
+.vault-root .field-title .btn-inline{margin-left:auto;padding:4px 10px;font-size:12px}
+.vault-root .field-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.vault-root .chip-editor .tag-list{margin:6px 0}
+.vault-root .check-line{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--text-secondary,#64748b);margin-top:6px;font-weight:400}
+.vault-root .check-line input{width:auto}
+.vault-root .required{color:var(--danger,#dc2626)}
+@media(max-width:900px){.vault-root dialog.editor-dialog .editor-grid{grid-template-columns:1fr}}
+.readonly-banner{margin:0 0 16px;padding:10px 14px;border-radius:8px;background:#f1f5f9;color:#475569;font-size:13px;border:1px solid #e2e8f0}
+
+/* 单一合同上传口；「我的合同」在上传识别页下方 */
+.upload-entry-grid.single{grid-template-columns:1fr}
+.upload-cloud-section{margin-top:36px;padding-top:24px;border-top:1px solid var(--border,#e2e8f0)}
+.upload-cloud-section .view-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+#upload-cloud-share .cloud-confirm{display:flex;gap:8px;align-items:center;margin:8px 0 16px;font-size:13px}
+#upload-cloud-share .cloud-preview{max-height:320px}
+
+.my-contracts{margin-top:36px;padding-top:24px;border-top:1px solid var(--border,#e2e8f0)}
+.my-contracts .view-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+/* 合同检索：搜索框居中，结果表格与「我的合同」相同并占满宽度 */
+#demo-searchPage{max-width:none}
+#demo-searchPage #demo-searchResults{max-width:none}
+#demo-searchPage .contract-table-wrap{margin-top:12px}
+#demo-searchPage .row-action-btn{border:0;background:transparent;padding:4px}
+#demo-searchPage .readonly-note{font-size:12px;color:var(--text-muted,#94a3b8);white-space:nowrap}
+#demo-searchPage mark{background:#fff0bd;color:inherit;padding:0 1px;border-radius:2px}
+#demo-searchPage .results-header{display:flex;justify-content:space-between;align-items:center}
+#demo-searchPage .match-mode{display:flex;justify-content:center;align-items:center;gap:8px;margin-top:14px;font-size:13px;color:var(--text-secondary,#64748b)}
+#demo-searchPage .match-mode select{width:auto;padding:5px 32px 5px 10px;border:1px solid var(--border,#e2e8f0);border-radius:6px;background-color:var(--bg-card,#fff);font-size:13px}
+#demo-searchPage .list-kw.from-text{border-style:dashed}
+.vault-root .edit-tag.readonly{padding:5px 9px;font-size:12px;color:#595967;background:#f5f5f8}

@@ -1,0 +1,23 @@
+name: Quantize OCR models (experiment)
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  quantize:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install onnx sympy onnxruntime==1.31.1 rapidocr_onnxruntime==1.4.4 pillow numpy
+      - run: python tools/quantize_ocr.py int8
+      - name: Publish experiment models
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh release view experiment-int8 *> $null
+          if ($LASTEXITCODE -ne 0) { gh release create experiment-int8 --prerelease --title "Experiment: int8 OCR models" --notes "Test artifacts only; not used by the app unless validated." }
+          gh release upload experiment-int8 (Get-ChildItem int8/*.onnx).FullName --clobber
