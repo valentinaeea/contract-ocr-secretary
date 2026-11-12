@@ -79,7 +79,7 @@ Run $bp @('native\check_ocr_models.py')
 
 Step '7/8 用 PyInstaller 打包'
 Run $bp @('native\make_version_info.py', 'version_info.txt')
-$hidden = 'documents engine semantic page_quality layout_quality recovery ocr_cache text_normalize date_review ocr_dictionary excel_table'.Split(' ')
+$hidden = 'documents engine semantic page_quality layout_quality recovery ocr_cache text_normalize date_review ocr_dictionary excel_table secretary_config'.Split(' ')
 $piArgs = @('-m', 'PyInstaller', '--noconfirm', '--clean', '--onedir', '--name', 'ContractOCR',
     '--version-file', 'version_info.txt', '--noupx', '--paths', 'native')
 foreach ($m in $hidden) { $piArgs += @('--hidden-import', $m) }
