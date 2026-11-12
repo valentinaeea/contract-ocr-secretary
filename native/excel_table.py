@@ -278,30 +278,56 @@ def search_master(configured: str, query: str, people: dict, eligible_ids: set |
     return {'rows': matches, 'total': total}
 
 
+def _write_error(stage: str, path: Path, error: OSError) -> ExcelError:
+    detail = f"（{type(error).__name__}"
+    code = getattr(error, 'winerror', None) or error.errno
+    if code is not None:
+        detail += f", 系统错误码 {code}"
+    detail += "）"
+    if isinstance(error, PermissionError):
+        hint = ('请关闭 Excel 中的总表及备份文件，确认文件不是只读；'
+                '当前账号需要该共享目录的创建文件、写入及替换/删除权限。'
+                '若是 OneDrive，请确认文件已下载到本机且同步正常。')
+    else:
+        hint = '请检查磁盘空间、网络连接及云盘同步状态。'
+    return ExcelError(f'{stage}失败：{path}。{hint}{detail}')
+
+
 def merge_into_master(configured: str, incoming: list[dict]) -> dict:
     path = master_path(configured)
     headers, existing = [], []
     if path.exists():
         try:
             headers, existing = read_xlsx(path.read_bytes())
-        except PermissionError:
-            raise ExcelError('总表正被占用（可能在 Excel 中打开），请关闭后重试')
+        except OSError as error:
+            raise _write_error('读取总表', path, error) from error
         backup = path.with_name(path.stem + '.备份.xlsx')
         try:
-            shutil.copy2(path, backup)
-        except OSError:
-            raise ExcelError('无法备份总表，请检查文件夹权限或关闭正在打开的总表')
+            # A backup needs identical bytes, not ACL/timestamp metadata writes,
+            # which some SMB/OneDrive directories do not permit.
+            shutil.copyfile(path, backup)
+        except OSError as error:
+            raise _write_error('备份总表', backup, error) from error
     stamp = _dt.datetime.now().strftime('%Y-%m-%d %H:%M')
     headers, rows, summary = merge_rows(headers, existing, incoming, stamp)
     data = write_xlsx(headers, rows)
-    handle, temporary = tempfile.mkstemp(prefix='.合同总表-', suffix='.xlsx', dir=path.parent)
+    try:
+        handle, temporary = tempfile.mkstemp(prefix='.合同总表-', suffix='.xlsx', dir=path.parent)
+    except OSError as error:
+        raise _write_error('在目标目录创建临时 Excel', path.parent, error) from error
+    stage = '写入临时 Excel'
+    target = Path(temporary)
     try:
         with os.fdopen(handle, 'wb') as file:
             file.write(data)
+        stage, target = '替换云盘总表', path
         os.replace(temporary, path)
-    except PermissionError:
-        raise ExcelError('总表正被占用（可能在 Excel 中打开），请关闭后重试')
+    except OSError as error:
+        raise _write_error(stage, target, error) from error
     finally:
-        if os.path.exists(temporary):
+        # Never let a sync/file-lock cleanup error hide the actual write result.
+        try:
             os.unlink(temporary)
+        except OSError:
+            pass
     return {**summary, 'path': str(path)}
