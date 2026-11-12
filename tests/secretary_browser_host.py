@@ -30,7 +30,13 @@ def main():
     print(result.stdout)
     if result.returncode:print(result.stderr);raise SystemExit(result.returncode)
    finally:
-    process.terminate()
+    if os.name == 'nt' and process.poll() is None:
+     # Stop the PyInstaller bootloader and child before deleting test data.
+     stopped=subprocess.run(['taskkill','/PID',str(process.pid),'/T','/F'],capture_output=True,text=True)
+     if stopped.returncode and process.poll() is None:
+      raise RuntimeError('Failed to stop packaged test process tree: '+stopped.stderr)
+    elif process.poll() is None:
+     process.terminate()
     try:process.wait(30)
     except subprocess.TimeoutExpired:process.kill();process.wait()
 if __name__=='__main__':main()
